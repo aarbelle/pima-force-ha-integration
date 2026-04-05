@@ -17,6 +17,7 @@ A Home Assistant custom integration for the **PIMA Force** alarm system using th
 - PIMA Force alarm panel running a firmware version **with JSON Interface support** — this is not the default firmware. Contact [PIMA Support](https://www.pima-alarms.com) and request a firmware version *"With JSON Support"*
 - Home Assistant must have a **static IP address** (the panel initiates the TCP connection to HA)
 - The panel must be configured to connect to your HA IP on port **10006** (or your chosen port)
+- You must define the account number in the "Moked"
 
 ## Installation
 
