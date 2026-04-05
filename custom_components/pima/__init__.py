@@ -2,8 +2,8 @@ import logging
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.discovery import async_load_platform
-from .custom_components.pima.const import DOMAIN, DEFAULT_PORT
-from .custom_components.pima.server import PimaServer
+from .const import DOMAIN, DEFAULT_PORT
+from .server import PimaServer
 
 _LOGGER = logging.getLogger(__name__)
 
