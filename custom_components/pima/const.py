@@ -1,0 +1,3 @@
+DOMAIN = "pima"
+
+DEFAULT_PORT = 10006
