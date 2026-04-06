@@ -210,6 +210,51 @@ class PimaServer:
         if zone_num not in self.zones:
             self.zones[zone_num] = {"open": False, "name": f"PIMA Zone {zone_num}"}
 
+    def _notify_alarm(self, alarm_type: str, zone_num: int, active: bool):
+        """Fire a pima_alarm event and create/dismiss a persistent notification."""
+        zone_name = self.zones.get(zone_num, {}).get("name", f"PIMA Zone {zone_num}")
+        notification_id = f"pima_alarm_{alarm_type}_{zone_num}"
+
+        # Fire a dedicated alarm event so users can trigger automations on it.
+        self.hass.bus.async_fire("pima_alarm", {
+            "alarm_type": alarm_type,
+            "zone": zone_num,
+            "name": zone_name,
+            "active": active,
+        })
+
+        if active:
+            _TITLES = {
+                "burglary": "PIMA Alarm: Break-In Detected",
+                "fire":     "PIMA Alarm: Fire Detected",
+                "medical":  "PIMA Alarm: Medical Emergency",
+                "panic":    "PIMA Alarm: Panic Triggered",
+                "duress":   "PIMA Alarm: Duress Code Used",
+            }
+            title = _TITLES.get(alarm_type, f"PIMA Alarm: {alarm_type.title()}")
+            message = f"Zone {zone_num} ({zone_name}) has triggered a {alarm_type} alarm."
+            _LOGGER.warning("PIMA ALARM %s: %s", alarm_type.upper(), message)
+            self.hass.async_create_task(
+                self.hass.services.async_call(
+                    "persistent_notification",
+                    "create",
+                    {
+                        "title": title,
+                        "message": message,
+                        "notification_id": notification_id,
+                    },
+                )
+            )
+        else:
+            _LOGGER.warning("PIMA ALARM %s restored: zone %s (%s)", alarm_type.upper(), zone_num, zone_name)
+            self.hass.async_create_task(
+                self.hass.services.async_call(
+                    "persistent_notification",
+                    "dismiss",
+                    {"notification_id": notification_id},
+                )
+            )
+
     def process_event(self, msg):
         t = msg.get("type")
         q = msg.get("qualifier")
@@ -251,6 +296,7 @@ class PimaServer:
             self.zones[zone_num]["alarmed"] = (q == 1)
             self.zones[zone_num]["last_event"] = t
             self.hass.bus.async_fire("pima_zone_update", self._zone_event_payload(zone_num))
+            self._notify_alarm("burglary", zone_num, q == 1)
             return
 
         # ── Zone bypass (CID 570) ────────────────────────────────────────────
@@ -295,6 +341,7 @@ class PimaServer:
             self.zones[zone_num]["fire"] = (q == 1)
             self.zones[zone_num]["last_event"] = t
             self.hass.bus.async_fire("pima_zone_update", self._zone_event_payload(zone_num))
+            self._notify_alarm("fire", zone_num, q == 1)
             return
 
         if t == 100 and zone is not None:   # Medical alarm
@@ -303,6 +350,7 @@ class PimaServer:
             self.zones[zone_num]["medical"] = (q == 1)
             self.zones[zone_num]["last_event"] = t
             self.hass.bus.async_fire("pima_zone_update", self._zone_event_payload(zone_num))
+            self._notify_alarm("medical", zone_num, q == 1)
             return
 
         if t in (120, 122) and zone is not None:   # Panic / silent panic
@@ -311,6 +359,7 @@ class PimaServer:
             self.zones[zone_num]["panic"] = (q == 1)
             self.zones[zone_num]["last_event"] = t
             self.hass.bus.async_fire("pima_zone_update", self._zone_event_payload(zone_num))
+            self._notify_alarm("panic", zone_num, q == 1)
             return
 
         if t == 121 and zone is not None:   # Duress
@@ -319,6 +368,7 @@ class PimaServer:
             self.zones[zone_num]["duress"] = (q == 1)
             self.zones[zone_num]["last_event"] = t
             self.hass.bus.async_fire("pima_zone_update", self._zone_event_payload(zone_num))
+            self._notify_alarm("duress", zone_num, q == 1)
             return
 
         _LOGGER.warning("Unhandled PIMA event: type=%s qualifier=%s zone=%s", t, q, zone)
