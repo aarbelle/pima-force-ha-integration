@@ -64,6 +64,57 @@ The PIMA Force panel **initiates** the TCP connection to Home Assistant (not the
 
 Zone binary sensors include these extra attributes: `alarmed`, `manual_bypassed`, `auto_bypassed`, `armed`, `supervision_loss`, `low_battery`, `short`, `cut_tamper`, `soak`, `chime`, `anti_mask`, `duress`, `fire`, `medical`, `panic`, `last_event`.
 
+## Alarm notifications
+
+When an alarm fires, the integration does two things automatically:
+
+1. **Persistent notification** — a notification appears in the Home Assistant UI (the bell icon in the top bar) and is dismissed automatically when the alarm is restored.
+2. **`pima_alarm` event** — fired on the HA event bus so you can trigger automations. Event data fields:
+
+   | Field | Type | Description |
+   |-------|------|-------------|
+   | `alarm_type` | string | `burglary`, `fire`, `medical`, `panic`, or `duress` |
+   | `zone` | int | Zone number |
+   | `name` | string | Zone name (as configured on the panel) |
+   | `active` | bool | `true` when alarm fires, `false` when restored |
+
+### Example: mobile push notification on break-in
+
+```yaml
+automation:
+  - alias: "PIMA break-in push notification"
+    trigger:
+      platform: event
+      event_type: pima_alarm
+      event_data:
+        alarm_type: burglary
+        active: true
+    action:
+      service: notify.mobile_app_your_phone
+      data:
+        title: "Break-in detected!"
+        message: "Zone {{ trigger.event.data.zone }} ({{ trigger.event.data.name }}) has triggered a burglar alarm."
+```
+
+Replace `notify.mobile_app_your_phone` with your actual notification service (e.g. `notify.notify` for the default notifier, or any other service you have configured).
+
+### Example: notify on any alarm type
+
+```yaml
+automation:
+  - alias: "PIMA any alarm notification"
+    trigger:
+      platform: event
+      event_type: pima_alarm
+      event_data:
+        active: true
+    action:
+      service: notify.notify
+      data:
+        title: "PIMA Alarm: {{ trigger.event.data.alarm_type | title }}"
+        message: "Zone {{ trigger.event.data.zone }} ({{ trigger.event.data.name }}) triggered."
+```
+
 ## Credits
 
 - Protocol documentation: PIMA Electronic Systems Ltd — *Force Interface JSON Format Specification*
